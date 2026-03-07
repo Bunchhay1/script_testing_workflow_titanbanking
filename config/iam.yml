@@ -1,0 +1,16 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: iam-service
+  datasource:
+    url: jdbc:postgresql://postgres:5432/ledger
+    username: ledger_user
+    password: ledger_pass
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
