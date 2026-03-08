@@ -13,9 +13,9 @@ CONFIG = {
     "promotions": "http://localhost:8083",
     "core": "http://localhost:8080",
     "gateway": "http://localhost:8000",
-    "kafka": "localhost:9092",
+    "kafka": "localhost:9093",
     "redis": "localhost:6379",
-    "postgres": {"host": "localhost", "port": 5432, "database": "titandb", "user": "postgres", "password": "mysecretpassword"},
+    "postgres": {"host": "localhost", "port": 5432, "database": "titandb", "user": "postgres", "password": "TitanDB$ecure2026_X9z!Lp"},
     "prometheus": "http://localhost:9090"
 }
 

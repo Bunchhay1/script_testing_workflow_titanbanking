@@ -7,14 +7,14 @@ import time
 from kafka import KafkaProducer, KafkaConsumer
 from kafka.admin import KafkaAdminClient
 
-# Configuration - Updated for Titan Core Banking
+# Configuration - Updated for Titan Core Banking (actual running ports)
 CONFIG = {
     "gateway": "http://localhost:8000",
-    "core": "http://localhost:8080",
+    "core": "http://localhost:8080",  # titan-core container
     "promotions": "http://localhost:8083",
     "notifications": "http://localhost:8084",
-    "kafka": "localhost:9092",
-    "postgres": {"host": "localhost", "port": 5432, "database": "titandb", "user": "postgres", "password": "mysecretpassword"},
+    "kafka": "localhost:9093",
+    "postgres": {"host": "localhost", "port": 5432, "database": "titandb", "user": "postgres", "password": "TitanDB$ecure2026_X9z!Lp"},
     "redis": "localhost:6379",
     "prometheus": "http://localhost:9090",
     "grafana": "http://localhost:3000",

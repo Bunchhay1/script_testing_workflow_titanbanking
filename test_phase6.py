@@ -13,7 +13,7 @@ CONFIG = {
     "notifications": "http://localhost:8084",
     "gateway": "http://localhost:8000",
     "redis": "localhost:6379",
-    "postgres": {"host": "localhost", "port": 5432, "database": "titandb", "user": "postgres", "password": "mysecretpassword"}
+    "postgres": {"host": "localhost", "port": 5432, "database": "titandb", "user": "postgres", "password": "TitanDB$ecure2026_X9z!Lp"}
 }
 
 state = {"passed": 0, "failed": 0}

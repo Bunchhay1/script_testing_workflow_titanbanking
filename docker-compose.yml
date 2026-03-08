@@ -1,96 +1,368 @@
 version: '3.8'
+
 services:
-  config-server:
-    image: hyness/spring-cloud-config-server
+  # ============================================================================
+  # NEW MICROSERVICES (Cryptography & AI)
+  # ============================================================================
+  
+  titan-edge-ai:
+    build: ./titan-edge-ai
+    container_name: titan-edge-ai
     ports:
-      - "8888:8888"
-    environment:
-      - SPRING_PROFILES_ACTIVE=native
-      - SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS=classpath:/config
+      - "8001:8000"
+    networks:
+      - titan-network
+    restart: unless-stopped
 
-  iam-service:
-    image: eclipse-temurin:17-jre
+  titan-federated-learning:
+    build: ./titan-federated-learning
+    container_name: titan-federated-learning
     ports:
-      - "8081:8081"
+      - "8098:8098"
+    networks:
+      - titan-network
+    restart: unless-stopped
+
+  titan-fhe-service:
+    build: ./titan-fhe-service
+    container_name: titan-fhe-service
+    ports:
+      - "8095:8095"
+    networks:
+      - titan-network
+    restart: unless-stopped
+
+  titan-mpc-service:
+    build: ./titan-mpc-service
+    container_name: titan-mpc-service
+    ports:
+      - "8099:8099"
+    networks:
+      - titan-network
+    restart: unless-stopped
+
+  titan-qkd-service:
+    build: ./titan-qkd-service
+    container_name: titan-qkd-service
+    ports:
+      - "8100:8100"
+    networks:
+      - titan-network
+    restart: unless-stopped
+
+  # ============================================================================
+  # CORE BANKING SERVICES
+  # ============================================================================
+
+  titan-gateway:
+    image: titan-gateway:latest
+    container_name: titan-gateway
+    ports:
+      - "8000:8000"
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - SERVER_PORT=8081
-    command: ["sh", "-c", "while true; do sleep 30; done"]
+      - PORT=8000
+      - TARGET_CORE_URL=http://titan-core:8080
+    networks:
+      - titan-network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "exit 0"]
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  ledger-service:
-    image: eclipse-temurin:17-jre
+  titan-core:
+    image: titan-core:latest
+    container_name: titan-core
     ports:
-      - "8082:8082"
+      - "8080:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - SERVER_PORT=8082
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=titan-db-prod
+      - REDIS_HOST=titan-redis-prod
+      - AI_HOST=titan-ai
+    networks:
+      - titan-network
+    restart: unless-stopped
     depends_on:
-      - postgres
-    command: ["sh", "-c", "while true; do sleep 30; done"]
+      - titan-db-prod
+      - titan-redis-prod
+      - titan-ai
+
+  titan-ai:
+    image: titan-ai:latest
+    container_name: titan-ai
+    ports:
+      - "50051:50051"
+    networks:
+      - titan-network
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "exit 0"]
+      test: ["CMD-SHELL", "python -c 'import socket; s=socket.socket(); s.connect((\"localhost\", 50051)); s.close()' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  titan-cbs-adapter:
+    image: titan-cbs-adapter:latest
+    container_name: titan-cbs-adapter
+    ports:
+      - "8085:8085"
+    networks:
+      - titan-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8085/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  postgres:
-    image: postgres:15
+  titan-notifications:
+    image: titan-notifications:latest
+    container_name: titan-notifications
+    ports:
+      - "8084:8084"
+    networks:
+      - titan-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8084/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  legacy-cbs-simulator:
+    image: legacy-cbs:latest
+    container_name: legacy-cbs-simulator
+    ports:
+      - "9099:9099"
+    networks:
+      - titan-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9099/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # DATABASES
+  # ============================================================================
+
+  titan-db-prod:
+    image: postgres:15-alpine
+    container_name: titan-db-prod
+    environment:
+      POSTGRES_DB: titandb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
+    networks:
+      - titan-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  titan-db:
+    image: postgres:15
+    container_name: titan_db
     environment:
-      - POSTGRES_DB=ledger
-      - POSTGRES_USER=ledger_user
-      - POSTGRES_PASSWORD=ledger_pass
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      POSTGRES_DB: titan
+      POSTGRES_USER: titan
+      POSTGRES_PASSWORD: titan123
+    ports:
+      - "5433:5432"
+    networks:
+      - titan-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: titan-project-postgres
+    environment:
+      POSTGRES_DB: titan
+      POSTGRES_USER: titan
+      POSTGRES_PASSWORD: titan123
+    ports:
+      - "5434:5432"
+    networks:
+      - titan-network
+    restart: unless-stopped
+
+  # ============================================================================
+  # CACHE & MESSAGING
+  # ============================================================================
+
+  titan-redis-prod:
+    image: redis:alpine
+    container_name: titan-redis-prod
+    networks:
+      - titan-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  titan-redis:
+    image: redis:7.0
+    container_name: titan_redis
+    ports:
+      - "6380:6379"
+    networks:
+      - titan-network
+    restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.0-alpine
+    container_name: titan-redis
     ports:
       - "6379:6379"
+    networks:
+      - titan-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    ports:
-      - "9092:9092"
-    environment:
-      - KAFKA_BROKER_ID=1
-      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
-      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-    depends_on:
-      - zookeeper
+  # ============================================================================
+  # MESSAGING
+  # ============================================================================
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
+    container_name: titan-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    networks:
+      - titan-network
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: titan-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
     environment:
-      - ZOOKEEPER_CLIENT_PORT=2181
-      - ZOOKEEPER_TICK_TIME=2000
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    networks:
+      - titan-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # MICROSERVICES
+  # ============================================================================
+
+  titan-promotions:
+    image: titan-promotions:latest
+    container_name: titan-promotions
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DB_HOST=titan-db-prod
+      - REDIS_HOST=redis
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    networks:
+      - titan-network
+    restart: unless-stopped
+    depends_on:
+      - titan-db-prod
+      - redis
+      - kafka
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8083/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ============================================================================
+  # MONITORING & OBSERVABILITY
+  # ============================================================================
 
   prometheus:
-    build:
-      context: .
-      dockerfile: Dockerfile.prometheus
+    image: prom/prometheus:latest
+    container_name: titan-prometheus-main
     ports:
       - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - titan-network
+    restart: unless-stopped
 
   grafana:
-    image: grafana/grafana
+    image: grafana/grafana:latest
+    container_name: titan-grafana
     ports:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+    networks:
+      - titan-network
+    restart: unless-stopped
     depends_on:
       - prometheus
 
-volumes:
-  postgres_data:
+  # ============================================================================
+  # MONITORING & OBSERVABILITY
+  # ============================================================================
+
+  titan-zipkin:
+    image: openzipkin/zipkin
+    container_name: titan-zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - titan-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:9411/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  titan-prometheus:
+    image: prom/prometheus:latest
+    container_name: titan-prometheus
+    networks:
+      - titan-network
+    restart: unless-stopped
+
+  titan-node-exporter:
+    image: prom/node-exporter:latest
+    container_name: titan-node-exporter
+    ports:
+      - "9100:9100"
+    networks:
+      - titan-network
+    restart: unless-stopped
+
+networks:
+  titan-network:
+    driver: bridge
